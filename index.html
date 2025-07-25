@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>MemoRhythm</title>
+    <title>MemoRhythm Apex</title>
     <style>
         :root {
             --bg-dark: #1A2238; --primary-accent: #FFD700; --secondary-accent: #F4F7FA;
@@ -19,27 +19,14 @@
         .screen {
             width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
             text-align: center; padding: clamp(10px, 2vh, 20px) clamp(10px, 2vw, 20px);
-            opacity: 1;
-            transform: scale(1);
+            opacity: 1; transform: scale(1);
             transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
             position: absolute; top: 0; left: 0;
         }
-
-        .hidden {
-            opacity: 0;
-            transform: scale(1.05);
-            pointer-events: none;
-        }
-        
-        .screen.is-exiting {
-            opacity: 0;
-            transform: scale(0.95);
-            pointer-events: none;
-        }
-        
+        .hidden { opacity: 0; transform: scale(1.05); pointer-events: none; }
+        .screen.is-exiting { opacity: 0; transform: scale(0.95); pointer-events: none; }
         #fullscreen-enforcer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
         #fullscreen-enforcer-overlay.hidden { display: none !important; }
-        
         #preload-screen h2 { font-size: clamp(1.5rem, 5vw, 2.5rem); color: var(--primary-accent); animation: pulse-text 1.5s infinite ease-in-out; }
         @keyframes pulse-text { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
         .action-button { padding: 15px 30px; margin-top: 1.5rem; background-color: var(--primary-accent); color: var(--bg-dark); border: none; border-radius: 8px; font-size: clamp(1rem, 3vw, 1.5rem); font-weight: bold; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
@@ -79,9 +66,13 @@
         #game-header h2 { color: var(--primary-accent); font-size: clamp(1.4rem, 3.5vh, 2.2rem); text-align: center; }
         #player-name-display, #score-display { flex-basis: 25%; } #player-name-display { text-align: left; } #score-display { text-align: right; }
         #game-reports { justify-content: center; align-items: center; gap: 5vw; background-color: rgba(0,0,0,0.2); border-radius: 8px; font-size: clamp(0.9rem, 2.5vh, 1.5rem); font-weight: bold; }
-        #multiplier-indicator { color: var(--primary-accent); font-weight: bold; text-shadow: 0 0 10px var(--primary-accent); animation: pulse-text 1s infinite; }
-        #multiplier-indicator.hidden { display: none !important; }
-        #game-board { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; position: relative; background-color: var(--board-bg-color); border-radius: 12px; transition: background-color 0.8s ease; }
+        #game-board { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; position: relative; background-color: var(--board-bg-color); border-radius: 12px; transition: background-color 0.8s ease; box-shadow: 0 0 0px rgba(255, 215, 0, 0); }
+        #game-board.flow-pulse { animation: pulse-board-glow 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes pulse-board-glow { 0% { box-shadow: 0 0 0px rgba(255, 215, 0, 0); } 50% { box-shadow: 0 0 40px rgba(255, 215, 0, 0.4); } 100% { box-shadow: 0 0 0px rgba(255, 215, 0, 0); } }
+        #combo-indicator { color: var(--primary-accent); font-weight: bold; text-shadow: 0 0 10px var(--primary-accent); display: inline-block; }
+        #combo-indicator.tick-up { animation: combo-tick 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        @keyframes combo-tick { 0% { transform: translateY(10px) scale(0.8); opacity: 0.5; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
+        #combo-indicator.hidden { display: none !important; }
         #board-grid { display: grid; }
         .card { background-color: transparent; perspective: 1000px; cursor: pointer; width: 100%; height: 100%; }
         .card.is-flipping { pointer-events: none; }
@@ -165,7 +156,7 @@
                 <span id="level-display"></span>
                 <span id="pairs-display"></span>
                 <span id="attempts-display"></span>
-                <span id="multiplier-indicator" class="hidden">Puntos x2!</span>
+                <span id="combo-indicator" class="hidden"></span>
             </div>
             <div id="game-board"><div id="board-grid"></div></div>
         </div>
@@ -209,7 +200,7 @@
             buttons: { enter: document.getElementById('enter-button'), hallOfFame: document.getElementById('hall-of-fame-button'), playAgain: document.getElementById('play-again-button'), mainMenu: document.getElementById('main-menu-button'), back: document.getElementById('back-button'), editProfiles: document.getElementById('edit-profiles-button'), prevPage: document.getElementById('prev-page-button'), nextPage: document.getElementById('next-page-button'), saveProfile: document.getElementById('save-profile-button'), cancelCreate: document.getElementById('cancel-create-button'), resumeFullscreen: document.getElementById('resume-fullscreen-button') },
             profile: { selector: document.getElementById('profile-selector'), creator: document.getElementById('profile-creator'), cardsContainer: document.getElementById('profile-cards-container'), paginationControls: document.getElementById('profile-pagination-controls'), pageIndicator: document.getElementById('page-indicator') },
             nameInput: { text: document.getElementById('name-text'), container: document.getElementById('keyboard-container') },
-            game: { board: document.getElementById('game-board'), grid: document.getElementById('board-grid'), playerName: document.getElementById('player-name-display'), themeName: document.getElementById('theme-name-display'), score: document.getElementById('score-display'), level: document.getElementById('level-display'), pairs: document.getElementById('pairs-display'), attempts: document.getElementById('attempts-display'), multiplierIndicator: document.getElementById('multiplier-indicator') },
+            game: { board: document.getElementById('game-board'), grid: document.getElementById('board-grid'), playerName: document.getElementById('player-name-display'), themeName: document.getElementById('theme-name-display'), score: document.getElementById('score-display'), level: document.getElementById('level-display'), pairs: document.getElementById('pairs-display'), attempts: document.getElementById('attempts-display'), comboIndicator: document.getElementById('combo-indicator') },
             finalScreen: { scoreValue: document.getElementById('final-score-value'), newRecord: document.getElementById('new-record-message') },
             hallOfFame: { table: document.getElementById('high-scores-table'), ceremonyControls: document.getElementById('hof-controls-ceremony'), consultationControls: document.getElementById('hof-controls-consultation') }
         };
@@ -222,7 +213,9 @@
             gameState = {
                 currentPlayer: null, score: 0, level: 1, subLevel: 1, attempts: 0, pairsFound: 0, totalPairs: 0,
                 firstCard: null, secondCard: null, lockBoard: false, isShiftActive: true, currentScreen: 'preload',
-                lastScreenBeforeHof: 'welcome', profiles: [], currentPage: 0, isEditMode: false, isMultiplierActive: false
+                lastScreenBeforeHof: 'welcome', profiles: [], currentPage: 0, isEditMode: false,
+                comboCounter: 0,
+                isMultiplierActive: false
             };
             createKeyboard(); switchScreen('preload');
             setTimeout(() => switchScreen('welcome'), 1500);
@@ -231,25 +224,12 @@
         function switchScreen(screenName, context = 'default') {
             const oldScreenName = gameState.currentScreen;
             if (oldScreenName === screenName && screenName !== 'preload') return;
-
             const oldScreenEl = dom.screens[oldScreenName];
             const newScreenEl = dom.screens[screenName];
-
             if (!newScreenEl) return;
-            
-            if (oldScreenEl) {
-                oldScreenEl.classList.add('is-exiting');
-            }
-
+            if (oldScreenEl) { oldScreenEl.classList.add('is-exiting'); }
             newScreenEl.classList.remove('hidden');
-
-            setTimeout(() => {
-                if (oldScreenEl) {
-                    oldScreenEl.classList.add('hidden');
-                    oldScreenEl.classList.remove('is-exiting');
-                }
-            }, TRANSITION_DURATION);
-            
+            setTimeout(() => { if (oldScreenEl) { oldScreenEl.classList.add('hidden'); oldScreenEl.classList.remove('is-exiting'); } }, TRANSITION_DURATION);
             if (screenName === 'hallOfFame') {
                 gameState.lastScreenBeforeHof = oldScreenName;
                 dom.hallOfFame.ceremonyControls.classList.toggle('hidden', context !== 'ceremony');
@@ -257,7 +237,6 @@
             } else if (screenName === 'profile') {
                 loadProfiles(); renderProfileSelector();
             }
-            
             gameState.currentScreen = screenName;
             if (screenName === 'game') setTimeout(adjustLayout, 0);
         }
@@ -349,12 +328,16 @@
         function startGame() {
             if (!gameState.currentPlayer) return;
             gameState.score = 0; gameState.level = 1; gameState.subLevel = 1;
+            gameState.comboCounter = 0;
             gameState.isMultiplierActive = false;
             switchScreen('game');
             loadLevel();
         }
         function loadLevel() { resetGameStateForNewLevel(); generateBoard(); updateReportDisplays(); }
-        function resetGameStateForNewLevel() { gameState.attempts = 0; gameState.pairsFound = 0; gameState.totalPairs = gameState.level + 1; [gameState.firstCard, gameState.secondCard, gameState.lockBoard] = [null, null, false]; }
+        function resetGameStateForNewLevel() {
+            gameState.attempts = 0; gameState.pairsFound = 0; gameState.totalPairs = gameState.level + 1;
+            [gameState.firstCard, gameState.secondCard, gameState.lockBoard] = [null, null, false];
+        }
         function createCardSet() {
             let pairs = [];
             const currentTheme = LEVEL_THEMES[gameState.level - 1]; const icons = [...currentTheme.icons];
@@ -379,17 +362,14 @@
                 const powerUp = POWER_UPS_CONFIG[Math.floor(Math.random() * POWER_UPS_CONFIG.length)];
                 const cardToRemove = cards[Math.floor(Math.random() * cards.length)];
                 const valueCore = String(cardToRemove.value).replace(/ico-|num-/, '');
-                
                 cards = cards.filter(c => !String(c.value).includes(valueCore));
-                
                 const powerUpCard = { value: powerUp.value, display: generateIconLayout(powerUp.icon, 1), isPowerUp: true };
                 cards.push(powerUpCard, { ...powerUpCard });
             }
             shuffle(cards);
-
-            dom.game.grid.innerHTML = ''; const currentTheme = LEVEL_THEMES[gameState.level - 1];
-            const boardConfig = calculateBoardLayout(cards.length);
-            dom.game.grid.style.gridTemplateColumns = `repeat(${boardConfig.cols}, 1fr)`; dom.game.grid.style.gridTemplateRows = `repeat(${boardConfig.rows}, 1fr)`;
+            dom.game.grid.innerHTML = '';
+            setTimeout(adjustLayout, 0);
+            const currentTheme = LEVEL_THEMES[gameState.level - 1];
             dom.game.board.style.backgroundColor = currentTheme.bgColor;
             cards.forEach(cardInfo => {
                 const cardElement = document.createElement('div'); cardElement.className = 'card';
@@ -398,57 +378,41 @@
                 cardElement.innerHTML = `<div class="card-inner"><div class="card-back"></div><div class="card-face">${cardInfo.display}</div></div>`;
                 dom.game.grid.appendChild(cardElement);
             });
-            setTimeout(adjustLayout, 0);
         }
         function handleCardClick(e) {
             const clickedCard = e.target.closest('.card');
             if (!clickedCard || gameState.lockBoard || clickedCard.classList.contains('matched') || clickedCard.classList.contains('is-flipping')) return;
-            
-            if (gameState.firstCard === clickedCard) {
-                gameState.firstCard = null;
-                unflipSingleCard(clickedCard);
-                return;
-            }
-
+            if (gameState.firstCard === clickedCard) { gameState.firstCard = null; unflipSingleCard(clickedCard); return; }
             flipCard(clickedCard);
-            
-            if (!gameState.firstCard) {
-                gameState.firstCard = clickedCard;
-            } else {
-                gameState.secondCard = clickedCard;
-                gameState.lockBoard = true;
-                gameState.attempts++;
-                checkForMatch();
-                updateReportDisplays();
-            }
+            if (!gameState.firstCard) { gameState.firstCard = clickedCard; } else { gameState.secondCard = clickedCard; gameState.lockBoard = true; gameState.attempts++; checkForMatch(); }
         }
-        function flipCard(card) {
-            card.classList.add('is-flipping', 'is-flipped');
-            setTimeout(() => card.classList.remove('is-flipping'), FLIP_ANIMATION_DURATION);
-        }
-        function unflipSingleCard(card) {
-            card.classList.add('is-flipping');
-            card.classList.remove('is-flipped');
-            setTimeout(() => card.classList.remove('is-flipping'), FLIP_ANIMATION_DURATION);
-        }
+        function flipCard(card) { card.classList.add('is-flipping', 'is-flipped'); setTimeout(() => card.classList.remove('is-flipping'), FLIP_ANIMATION_DURATION); }
+        function unflipSingleCard(card) { card.classList.add('is-flipping'); card.classList.remove('is-flipped'); setTimeout(() => card.classList.remove('is-flipping'), FLIP_ANIMATION_DURATION); }
         function checkForMatch() {
-            const val1 = String(gameState.firstCard.dataset.value); const val2 = String(gameState.secondCard.dataset.value);
-            let isMatch = (gameState.subLevel === 3) ? (val1.replace(/[^0-9]/g, '') === val2.replace(/[^0-9]/g, '') && val1 !== val2) : (val1 === val2);
+            const val1 = String(gameState.firstCard.dataset.value);
+            const val2 = String(gameState.secondCard.dataset.value);
+            const isMatch = (val1 === val2) || (gameState.subLevel === 3 && val1.replace(/[^0-9]/g, '') === val2.replace(/[^0-9]/g, '') && val1 !== val2);
             if (isMatch) {
-                if (val1.startsWith('powerup-')) { triggerPowerUp(val1); }
+                if (val1.startsWith('powerup-')) { triggerPowerUp(val1); } else { gameState.comboCounter++; }
                 disableCards();
-            } else { unflipCards(); }
+            } else {
+                gameState.comboCounter = 0;
+                unflipCards();
+            }
+            updateReportDisplays();
         }
         function disableCards() {
             setTimeout(() => {
                 gameState.firstCard.querySelector('.card-inner').classList.add('is-correct');
                 gameState.secondCard.querySelector('.card-inner').classList.add('is-correct');
+                triggerFlowFeedback();
                 setTimeout(() => {
                     gameState.firstCard.classList.add('matched'); gameState.secondCard.classList.add('matched');
                     gameState.pairsFound++;
-                    let pointsToAdd = 100;
+                    const basePoints = 100; const comboBonus = gameState.comboCounter > 1 ? (gameState.comboCounter - 1) * 25 : 0;
+                    let pointsToAdd = basePoints + comboBonus;
                     if (gameState.isMultiplierActive && !String(gameState.firstCard.dataset.value).startsWith('powerup-')) {
-                        pointsToAdd = 200; gameState.isMultiplierActive = false;
+                        pointsToAdd *= 2; gameState.isMultiplierActive = false;
                     }
                     gameState.score += pointsToAdd;
                     resetTurn(); updateReportDisplays();
@@ -460,6 +424,7 @@
             setTimeout(() => {
                 gameState.firstCard.querySelector('.card-inner').classList.add('is-wrong');
                 gameState.secondCard.querySelector('.card-inner').classList.add('is-wrong');
+                triggerFlowFeedback();
                 setTimeout(() => {
                     if (gameState.firstCard) unflipSingleCard(gameState.firstCard);
                     if (gameState.secondCard) unflipSingleCard(gameState.secondCard);
@@ -468,12 +433,7 @@
             }, 700);
         }
         function resetTurn() { [gameState.firstCard, gameState.secondCard, gameState.lockBoard] = [null, null, false]; }
-        function nextStage() {
-            if (gameState.subLevel < 3) gameState.subLevel++;
-            else { gameState.level++; gameState.subLevel = 1; }
-            if (gameState.level > MAX_LEVELS) { endGame(); return; }
-            loadLevel();
-        }
+        function nextStage() { if (gameState.subLevel < 3) gameState.subLevel++; else { gameState.level++; gameState.subLevel = 1; } if (gameState.level > MAX_LEVELS) { endGame(); return; } loadLevel(); }
         function endGame() {
             const highScores = getHighScores(); const playerName = gameState.currentPlayer.name;
             const isNewRecord = highScores.length < 5 || gameState.score > highScores[highScores.length - 1].score;
@@ -487,49 +447,66 @@
             }, 2500);
         }
 
-        // --- POWER-UP LOGIC ---
-        function triggerPowerUp(powerUpValue) {
-            if (powerUpValue === 'powerup-peek') triggerPeekEffect();
-            if (powerUpValue === 'powerup-multiplier') { gameState.isMultiplierActive = true; }
-        }
+        // --- POWER-UP & UI ---
+        function triggerPowerUp(powerUpValue) { if (powerUpValue === 'powerup-peek') triggerPeekEffect(); if (powerUpValue === 'powerup-multiplier') { gameState.isMultiplierActive = true; } }
         function triggerPeekEffect() {
             gameState.lockBoard = true;
             const unMatchedCards = [...dom.game.grid.querySelectorAll('.card:not(.matched):not(.is-flipped)')];
             unMatchedCards.forEach(card => flipCard(card));
-            setTimeout(() => {
-                unMatchedCards.forEach(card => unflipSingleCard(card));
-                gameState.lockBoard = false;
-            }, 1500);
+            setTimeout(() => { unMatchedCards.forEach(card => unflipSingleCard(card)); gameState.lockBoard = false; }, 1500);
         }
-
-        // --- UI & LAYOUT ---
+        function triggerFlowFeedback() {
+            const { board, comboIndicator } = dom.game;
+            if (gameState.comboCounter > 1) {
+                board.classList.remove('flow-pulse'); void board.offsetWidth; board.classList.add('flow-pulse');
+            } else { board.classList.remove('flow-pulse'); }
+            if (gameState.comboCounter > 1) {
+                comboIndicator.textContent = `Combo x${gameState.comboCounter}`;
+                comboIndicator.classList.remove('hidden', 'tick-up'); void comboIndicator.offsetWidth; comboIndicator.classList.add('tick-up');
+            } else { comboIndicator.classList.add('hidden'); }
+        }
         function updateReportDisplays() {
             const currentTheme = LEVEL_THEMES[gameState.level - 1]; dom.game.playerName.textContent = gameState.currentPlayer.name;
             dom.game.themeName.textContent = currentTheme.themeName; dom.game.score.textContent = `Puntos: ${gameState.score}`;
             dom.game.level.textContent = `Nivel: ${gameState.level}.${gameState.subLevel}`; dom.game.pairs.textContent = `Pares: ${gameState.pairsFound}/${gameState.totalPairs}`;
             dom.game.attempts.textContent = `Intentos: ${gameState.attempts}`;
-            dom.game.multiplierIndicator.classList.toggle('hidden', !gameState.isMultiplierActive);
         }
         function generateIconLayout(icon, count) {
             const svg = `<svg class="icon-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"><text x="50%" y="55%" font-size="80" dominant-baseline="middle" text-anchor="middle">${icon}</text></svg>`;
             const wrapper = `<div class="icon-svg-wrapper">${svg}</div>`; const cols = Math.ceil(Math.sqrt(count)); const rows = Math.ceil(count / cols);
             let layoutHtml = `<div class="icon-layout" style="grid-template-columns: repeat(${cols}, 1fr); grid-template-rows: repeat(${rows}, 1fr);">`;
-            for (let i = 0; i < count; i++) { layoutHtml += wrapper; }
-            layoutHtml += '</div>'; return layoutHtml;
+            for (let i = 0; i < count; i++) { layoutHtml += wrapper; } layoutHtml += '</div>'; return layoutHtml;
         }
-        function calculateBoardLayout(totalCards) {
-            if (totalCards <= 10 && totalCards % 2 === 0) return { rows: 2, cols: totalCards / 2 }; if (totalCards <= 18 && totalCards % 3 === 0) return { rows: 3, cols: totalCards / 3 };
-            if (totalCards % 4 === 0) return { rows: 4, cols: totalCards / 4 }; if (totalCards <= 14) return { rows: 2, cols: Math.ceil(totalCards / 2) };
-            if (totalCards <= 21) return { rows: 3, cols: Math.ceil(totalCards / 3) }; return { rows: 4, cols: Math.ceil(totalCards / 4) };
+        function calculateBoardLayout(totalCards, isTall) {
+            let layout;
+            if (totalCards <= 10 && totalCards % 2 === 0) layout = { rows: 2, cols: totalCards / 2 };
+            else if (totalCards <= 18 && totalCards % 3 === 0) layout = { rows: 3, cols: totalCards / 3 };
+            else if (totalCards % 4 === 0) layout = { rows: 4, cols: totalCards / 4 };
+            else if (totalCards <= 14) layout = { rows: 2, cols: Math.ceil(totalCards / 2) };
+            else if (totalCards <= 21) layout = { rows: 3, cols: Math.ceil(totalCards / 3) };
+            else layout = { rows: 4, cols: Math.ceil(totalCards / 4) };
+            if (isTall && layout.cols > layout.rows) { [layout.rows, layout.cols] = [layout.cols, layout.rows]; }
+            return layout;
         }
         function adjustLayout() {
-            if (dom.screens.game.classList.contains('hidden')) return; const grid = dom.game.grid; const boardRect = dom.game.board.getBoundingClientRect();
-            if (!grid.children.length) return; const { cols, rows } = calculateBoardLayout(grid.children.length); if (!cols || !rows) return;
-            const cardAspectRatio = 3 / 4; const gridAspectRatio = (cols * cardAspectRatio) / rows; let gridWidth, gridHeight;
+            if (dom.screens.game.classList.contains('hidden')) return;
+            const grid = dom.game.grid;
+            const boardRect = dom.game.board.getBoundingClientRect();
+            if (!grid.children.length) return;
+            const isTall = boardRect.height > boardRect.width;
+            const { cols, rows } = calculateBoardLayout(grid.children.length, isTall);
+            if (!cols || !rows) return;
+            const cardAspectRatio = 3 / 4;
+            const gridAspectRatio = (cols * cardAspectRatio) / rows;
+            let gridWidth, gridHeight;
             if (boardRect.width / boardRect.height < gridAspectRatio) { gridWidth = boardRect.width * 0.98; gridHeight = gridWidth / gridAspectRatio; }
             else { gridHeight = boardRect.height * 0.98; gridWidth = gridHeight * gridAspectRatio; }
-            grid.style.width = `${gridWidth}px`; grid.style.height = `${gridHeight}px`; grid.style.gap = `${(gridWidth / cols) * 0.05}px`;
-            const cardHeight = gridHeight / rows; document.documentElement.style.setProperty('--dynamic-card-font-size', `${cardHeight * 0.5}px`);
+            grid.style.width = `${gridWidth}px`; grid.style.height = `${gridHeight}px`;
+            grid.style.gap = `${(gridWidth / cols) * 0.05}px`;
+            const cardHeight = gridHeight / rows;
+            document.documentElement.style.setProperty('--dynamic-card-font-size', `${cardHeight * 0.5}px`);
+            grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
         }
         function shuffle(array) { for (let i = array.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [array[i], array[j]] = [array[j], array[i]]; } }
 
@@ -561,7 +538,7 @@
         dom.buttons.hallOfFame.addEventListener('click', () => { displayHighScores(); switchScreen('hallOfFame', 'consultation'); });
         dom.buttons.back.addEventListener('click', () => { switchScreen(gameState.lastScreenBeforeHof); });
         dom.buttons.playAgain.addEventListener('click', () => { dom.finalScreen.newRecord.classList.add('hidden'); switchScreen('profile'); });
-        dom.buttons.mainMenu.addEventListener('click', () => { dom.finalScreen.newRecord.classList.add('hidden'); init(); });
+        dom.buttons.mainMenu.addEventListener('click', () => { init(); });
         dom.buttons.editProfiles.addEventListener('click', toggleEditMode);
         dom.buttons.saveProfile.addEventListener('click', saveNewProfile);
         dom.buttons.cancelCreate.addEventListener('click', renderProfileSelector);
