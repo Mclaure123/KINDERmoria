@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>MemoRhythm</title>
+    <style>
+        :root {
+            --bg-dark: #1A2238; --primary-accent: #FFD700; --secondary-accent: #F4F7FA;
+            --card-face-bg: #4A5568; --card-back-bg: #FFC107; --key-bg: #2E3748;
+            --powerup-bg: radial-gradient(circle, #6a0dad 0%, #3a0ca3 100%);
+            --spacebar-green: #2ECC71; --delete-red: #E74C3C; --text-color: #F4F7FA;
+            --trophy-color: #C0C0C0; --board-bg-color: rgba(0, 0, 0, 0.2);
+            --dynamic-card-font-size: 3rem;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background-color: var(--bg-dark); color: var(--text-color); font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; }
+        
+        .screen {
+            width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            text-align: center; padding: clamp(10px, 2vh, 20px) clamp(10px, 2vw, 20px);
+            opacity: 1;
+            transform: scale(1);
+            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            position: absolute; top: 0; left: 0;
+        }
+
+        .hidden {
+            opacity: 0;
+            transform: scale(1.05);
+            pointer-events: none;
+        }
+        
+        .screen.is-exiting {
+            opacity: 0;
+            transform: scale(0.95);
+            pointer-events: none;
+        }
+        
+        #fullscreen-enforcer-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.9); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+        #fullscreen-enforcer-overlay.hidden { display: none !important; }
+        
+        #preload-screen h2 { font-size: clamp(1.5rem, 5vw, 2.5rem); color: var(--primary-accent); animation: pulse-text 1.5s infinite ease-in-out; }
+        @keyframes pulse-text { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+        .action-button { padding: 15px 30px; margin-top: 1.5rem; background-color: var(--primary-accent); color: var(--bg-dark); border: none; border-radius: 8px; font-size: clamp(1rem, 3vw, 1.5rem); font-weight: bold; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; }
+        .action-button:hover { transform: scale(1.05); box-shadow: 0 0 20px rgba(255, 215, 0, 0.5); }
+        .button-group { display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; margin-top: 1rem; }
+        #welcome-screen h1 { font-size: clamp(2.5rem, 10vw, 7rem); color: var(--primary-accent); }
+        #welcome-screen p { font-size: clamp(1rem, 4vw, 1.8rem); color: var(--secondary-accent); margin-top: 1rem; font-style: italic; }
+        #hall-of-fame-button { position: absolute; bottom: 20px; right: 20px; background: none; border: none; font-size: clamp(2rem, 5vw, 3rem); cursor: pointer; color: var(--trophy-color); transition: transform 0.2s; }
+        #hall-of-fame-button:hover { transform: scale(1.1); }
+        #profile-screen-layout { display: flex; flex-direction: column; width: 100%; height: 100%; max-width: 900px; justify-content: center; align-items: center; gap: 1rem; }
+        #profile-selector, #profile-creator { width: 100%; }
+        #profile-creator.hidden, #profile-selector.hidden { display: none !important; }
+        #profile-cards-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; width: 100%; padding: 1rem; }
+        .profile-card { background-color: var(--key-bg); border: 2px solid var(--primary-accent); border-radius: 8px; aspect-ratio: 4 / 3; display: flex; flex-direction: column; justify-content: center; align-items: center; font-size: clamp(1rem, 2.5vw, 1.5rem); font-weight: bold; cursor: pointer; transition: transform 0.2s, background-color 0.2s; position: relative; }
+        .profile-card:hover { transform: scale(1.05); background-color: var(--card-face-bg); }
+        .profile-card.add-new-card { font-size: 3rem; }
+        .delete-profile-button { position: absolute; top: 5px; right: 5px; width: 25px; height: 25px; background-color: var(--delete-red); color: white; border: none; border-radius: 50%; font-size: 1rem; line-height: 25px; cursor: pointer; opacity: 0; transition: opacity 0.2s; }
+        .edit-mode .delete-profile-button { opacity: 1; }
+        #profile-pagination-controls { display: flex; justify-content: center; align-items: center; gap: 1rem; margin-top: 0.5rem; }
+        #profile-pagination-controls.hidden { display: none !important; }
+        .pagination-button { background: none; border: none; color: var(--primary-accent); font-size: 2rem; cursor: pointer; }
+        #profile-edit-controls { position: absolute; top: 20px; right: 20px; }
+        #name-input-display { width: 100%; min-height: 60px; border: 2px solid var(--primary-accent); border-radius: 8px; margin-bottom: 1rem; padding: 0 20px; display: flex; align-items: center; justify-content: center; font-size: clamp(1.5rem, 5vw, 2.5rem); letter-spacing: 3px; }
+        #name-cursor { animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { color: var(--primary-accent); } }
+        #keyboard-container { display: flex; flex-direction: column; gap: min(1.0vh, 8px); width: 100%; align-items: center; }
+        .keyboard-row { display: flex; justify-content: center; gap: min(1.0vw, 8px); width: 100%; }
+        .key { display: flex; align-items: center; justify-content: center; background-color: var(--key-bg); border: 1px solid var(--primary-accent); border-radius: 5px; font-size: clamp(0.8rem, 2.5vw, 1.5rem); font-weight: bold; cursor: pointer; transition: background-color 0.2s, transform 0.1s; height: clamp(40px, 8vw, 60px); flex-basis: 8%; flex-grow: 1; }
+        .key.ghost { visibility: hidden; pointer-events: none; }
+        .key:active { transform: scale(0.95); }
+        .key.special { font-size: clamp(0.7rem, 2vw, 1.2rem); flex-grow: 1.5; flex-basis: auto; }
+        #key-shift { flex-grow: 2; } #key-space { flex-grow: 5; background-color: var(--spacebar-green); } #key-delete { flex-grow: 2; background-color: var(--delete-red); } #key-backspace { flex-grow: 2; }
+        .shift-active { background-color: var(--primary-accent); color: var(--bg-dark); }
+        #game-layout { width: 100%; height: 100%; display: grid; grid-template-rows: 8% 7% 85%; gap: 1vh; }
+        #game-header, #game-reports { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0 2vw; }
+        #game-header { font-size: clamp(1rem, 2vh, 1.4rem); }
+        #game-header h2 { color: var(--primary-accent); font-size: clamp(1.4rem, 3.5vh, 2.2rem); text-align: center; }
+        #player-name-display, #score-display { flex-basis: 25%; } #player-name-display { text-align: left; } #score-display { text-align: right; }
+        #game-reports { justify-content: center; align-items: center; gap: 5vw; background-color: rgba(0,0,0,0.2); border-radius: 8px; font-size: clamp(0.9rem, 2.5vh, 1.5rem); font-weight: bold; }
+        #multiplier-indicator { color: var(--primary-accent); font-weight: bold; text-shadow: 0 0 10px var(--primary-accent); animation: pulse-text 1s infinite; }
+        #multiplier-indicator.hidden { display: none !important; }
+        #game-board { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; position: relative; background-color: var(--board-bg-color); border-radius: 12px; transition: background-color 0.8s ease; }
+        #board-grid { display: grid; }
+        .card { background-color: transparent; perspective: 1000px; cursor: pointer; width: 100%; height: 100%; }
+        .card.is-flipping { pointer-events: none; }
+        .card.matched { cursor: default; transition: opacity 0.5s ease, transform 0.5s ease; transform: scale(0.95); opacity: 0.5; }
+        .is-correct { animation: pulse-gold 0.6s ease; } .is-wrong { animation: shake-wrong 0.4s ease; }
+        @keyframes pulse-gold { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); box-shadow: 0 0 15px var(--primary-accent); } }
+        @keyframes shake-wrong { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        .card-inner { position: relative; width: 100%; height: 100%; transition: transform 0.6s; transform-style: preserve-3d; }
+        .card.is-flipped .card-inner { transform: rotateY(180deg); }
+        .card-face, .card-back { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 8px; }
+        .card-back { background-color: var(--card-back-bg); border: 2px solid var(--primary-accent); }
+        .card-face { background-color: var(--card-face-bg); transform: rotateY(180deg); font-weight: bold; font-size: var(--dynamic-card-font-size); display: flex; justify-content: center; align-items: center; padding: 5%; }
+        .card.power-up .card-face { background: var(--powerup-bg); }
+        .icon-layout { width: 100%; height: 100%; display: grid; place-items: center; gap: 2%; }
+        .icon-svg-wrapper { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+        .icon-svg { width: 100%; height: 100%; }
+        #final-score-screen h1, #hall-of-fame-screen h1 { font-size: clamp(2rem, 8vw, 5rem); color: var(--primary-accent); margin-bottom: 2rem; }
+        #final-score-value { font-size: clamp(3rem, 12vw, 8rem); color: var(--primary-accent); font-weight: bold; }
+        #new-record-message { color: var(--primary-accent); font-style: italic; font-size: 1.5rem; margin-top: 1rem; }
+        #new-record-message.hidden { display: none !important; }
+        #high-scores-table { width: 90%; max-width: 700px; display: grid; grid-template-columns: 1fr 4fr 2fr; gap: 0.5rem 1rem; font-size: clamp(1rem, 3vw, 1.8rem); }
+        .score-rank, .score-name, .score-value { padding: 0.5rem; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .score-rank { text-align: right; color: var(--trophy-color); }
+        .score-value { text-align: right; font-weight: bold; }
+        .score-row-1 .score-rank, .score-row-1 .score-name, .score-row-1 .score-value { color: var(--primary-accent); font-weight: bold; transform: scale(1.05); }
+        .new-entry-highlight { animation: new-entry-flash 1.5s ease-in-out; }
+        @keyframes new-entry-flash { 0% { background-color: transparent; } 50% { background-color: rgba(255, 215, 0, 0.3); } 100% { background-color: transparent; } }
+        #hof-controls-ceremony.hidden, #hof-controls-consultation.hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="fullscreen-enforcer-overlay" class="screen hidden">
+        <h2>Se requiere pantalla completa para jugar</h2>
+        <button id="resume-fullscreen-button" class="action-button">REANUDAR</button>
+    </div>
+
+    <div id="preload-screen" class="screen"><h2 >Cargando...</h2></div>
+
+    <div id="welcome-screen" class="screen hidden">
+        <h1>MemoRhythm</h1>
+        <p>Donde los símbolos y la memoria bailan.</p>
+        <button id="enter-button" class="action-button">ENTRAR</button>
+        <button id="hall-of-fame-button">🏆</button>
+    </div>
+
+    <div id="profile-screen" class="screen hidden">
+        <div id="profile-screen-layout">
+            <div id="profile-selector">
+                <div id="profile-edit-controls">
+                    <button id="edit-profiles-button" class="pagination-button">✏️</button>
+                </div>
+                <h2>Elige tu Perfil</h2>
+                <div id="profile-cards-container"></div>
+                <div id="profile-pagination-controls" class="hidden">
+                    <button id="prev-page-button" class="pagination-button">&lt;</button>
+                    <span id="page-indicator"></span>
+                    <button id="next-page-button" class="pagination-button">&gt;</button>
+                </div>
+            </div>
+            <div id="profile-creator" class="hidden">
+                <h2>Crea un Nuevo Perfil</h2>
+                <div id="name-input-display"><span id="name-text"></span><span id="name-cursor">_</span></div>
+                <div id="keyboard-container"></div>
+                <div class="button-group">
+                    <button id="save-profile-button" class="action-button">GUARDAR</button>
+                    <button id="cancel-create-button" class="action-button">CANCELAR</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-screen" class="screen hidden">
+        <div id="game-layout">
+            <header id="game-header">
+                <span id="player-name-display"></span>
+                <h2 id="theme-name-display">MemoRhythm</h2>
+                <span id="score-display">Puntos: 0</span>
+            </header>
+            <div id="game-reports">
+                <span id="level-display"></span>
+                <span id="pairs-display"></span>
+                <span id="attempts-display"></span>
+                <span id="multiplier-indicator" class="hidden">Puntos x2!</span>
+            </div>
+            <div id="game-board"><div id="board-grid"></div></div>
+        </div>
+    </div>
+
+    <div id="final-score-screen" class="screen hidden">
+        <h1>Partida Completada</h1>
+        <p id="final-score-value">0</p>
+        <p id="new-record-message" class="hidden">¡NUEVO RÉCORD!</p>
+        <p>Entrando al Salón de la Fama...</p>
+    </div>
+
+    <div id="hall-of-fame-screen" class="screen hidden">
+        <h1>Salón de la Fama</h1>
+        <div id="high-scores-table"></div>
+        <div id="hof-controls-ceremony" class="button-group">
+            <button id="play-again-button" class="action-button">Jugar de Nuevo</button>
+            <button id="main-menu-button" class="action-button">Menú Principal</button>
+        </div>
+        <div id="hof-controls-consultation" class="button-group hidden">
+            <button id="back-button" class="action-button">VOLVER</button>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // --- CONFIGURATION ---
+        const LEVEL_THEMES = [ { themeName: 'Formas', icons: ['🔵', '⭐', '🔺', '🟥', '💚', '🧡', '💜', '♦️'], bgColor: 'rgba(20, 30, 70, 0.2)' }, { themeName: 'Animales', icons: ['🐶', '🐱', '🐭', '🦊', '🐻', '🐼', '🐨', '🐯'], bgColor: 'rgba(30, 60, 40, 0.2)' }, { themeName: 'Frutas', icons: ['🍎', '🍌', '🍇', '🍓', '🍒', '🍑', '🍍', '🥝'], bgColor: 'rgba(80, 40, 40, 0.2)' }, { themeName: 'Espacio', icons: ['☀️', '🌙', '⚡', '❄️', '🔥', '💧', '🚀', '🪐'], bgColor: 'rgba(40, 20, 60, 0.2)' }, { themeName: 'Monstruos', icons: ['😀', '😎', '😈', '👻', '👽', '🤖', '🎃', '👾'], bgColor: 'rgba(50, 50, 50, 0.2)' } ];
+        const MAX_LEVELS = LEVEL_THEMES.length;
+        const PROFILES_PER_PAGE = 5;
+        const POWER_UPS_CONFIG = [
+            { type: 'PEEK', value: 'powerup-peek', icon: '👁️' },
+            { type: 'MULTIPLIER', value: 'powerup-multiplier', icon: '⭐' }
+        ];
+        const FLIP_ANIMATION_DURATION = 600;
+        const TRANSITION_DURATION = 500;
+
+        // --- DOM ELEMENTS & GAME STATE ---
+        const dom = {
+            screens: { preload: document.getElementById('preload-screen'), welcome: document.getElementById('welcome-screen'), profile: document.getElementById('profile-screen'), game: document.getElementById('game-screen'), finalScore: document.getElementById('final-score-screen'), hallOfFame: document.getElementById('hall-of-fame-screen'), fullscreenOverlay: document.getElementById('fullscreen-enforcer-overlay') },
+            buttons: { enter: document.getElementById('enter-button'), hallOfFame: document.getElementById('hall-of-fame-button'), playAgain: document.getElementById('play-again-button'), mainMenu: document.getElementById('main-menu-button'), back: document.getElementById('back-button'), editProfiles: document.getElementById('edit-profiles-button'), prevPage: document.getElementById('prev-page-button'), nextPage: document.getElementById('next-page-button'), saveProfile: document.getElementById('save-profile-button'), cancelCreate: document.getElementById('cancel-create-button'), resumeFullscreen: document.getElementById('resume-fullscreen-button') },
+            profile: { selector: document.getElementById('profile-selector'), creator: document.getElementById('profile-creator'), cardsContainer: document.getElementById('profile-cards-container'), paginationControls: document.getElementById('profile-pagination-controls'), pageIndicator: document.getElementById('page-indicator') },
+            nameInput: { text: document.getElementById('name-text'), container: document.getElementById('keyboard-container') },
+            game: { board: document.getElementById('game-board'), grid: document.getElementById('board-grid'), playerName: document.getElementById('player-name-display'), themeName: document.getElementById('theme-name-display'), score: document.getElementById('score-display'), level: document.getElementById('level-display'), pairs: document.getElementById('pairs-display'), attempts: document.getElementById('attempts-display'), multiplierIndicator: document.getElementById('multiplier-indicator') },
+            finalScreen: { scoreValue: document.getElementById('final-score-value'), newRecord: document.getElementById('new-record-message') },
+            hallOfFame: { table: document.getElementById('high-scores-table'), ceremonyControls: document.getElementById('hof-controls-ceremony'), consultationControls: document.getElementById('hof-controls-consultation') }
+        };
+        let gameState;
+
+        // --- INITIALIZATION & SCREEN MANAGEMENT ---
+        function init() {
+            initializeDefaultData();
+            Object.values(dom.screens).forEach(screen => { if(screen.id !== 'preload-screen') screen.classList.add('hidden'); });
+            gameState = {
+                currentPlayer: null, score: 0, level: 1, subLevel: 1, attempts: 0, pairsFound: 0, totalPairs: 0,
+                firstCard: null, secondCard: null, lockBoard: false, isShiftActive: true, currentScreen: 'preload',
+                lastScreenBeforeHof: 'welcome', profiles: [], currentPage: 0, isEditMode: false, isMultiplierActive: false
+            };
+            createKeyboard(); switchScreen('preload');
+            setTimeout(() => switchScreen('welcome'), 1500);
+        }
+        
+        function switchScreen(screenName, context = 'default') {
+            const oldScreenName = gameState.currentScreen;
+            if (oldScreenName === screenName && screenName !== 'preload') return;
+
+            const oldScreenEl = dom.screens[oldScreenName];
+            const newScreenEl = dom.screens[screenName];
+
+            if (!newScreenEl) return;
+            
+            if (oldScreenEl) {
+                oldScreenEl.classList.add('is-exiting');
+            }
+
+            newScreenEl.classList.remove('hidden');
+
+            setTimeout(() => {
+                if (oldScreenEl) {
+                    oldScreenEl.classList.add('hidden');
+                    oldScreenEl.classList.remove('is-exiting');
+                }
+            }, TRANSITION_DURATION);
+            
+            if (screenName === 'hallOfFame') {
+                gameState.lastScreenBeforeHof = oldScreenName;
+                dom.hallOfFame.ceremonyControls.classList.toggle('hidden', context !== 'ceremony');
+                dom.hallOfFame.consultationControls.classList.toggle('hidden', context !== 'consultation');
+            } else if (screenName === 'profile') {
+                loadProfiles(); renderProfileSelector();
+            }
+            
+            gameState.currentScreen = screenName;
+            if (screenName === 'game') setTimeout(adjustLayout, 0);
+        }
+
+        // --- PROFILE MANAGEMENT ---
+        function loadProfiles() { gameState.profiles = JSON.parse(localStorage.getItem('memoRhythm_playerProfiles')) || []; }
+        function saveProfiles() { localStorage.setItem('memoRhythm_playerProfiles', JSON.stringify(gameState.profiles)); }
+        function renderProfileSelector() {
+            dom.profile.selector.classList.remove('hidden'); dom.profile.creator.classList.add('hidden');
+            dom.profile.cardsContainer.innerHTML = '';
+            const totalPages = Math.ceil(gameState.profiles.length / PROFILES_PER_PAGE);
+            gameState.currentPage = Math.min(gameState.currentPage, totalPages > 0 ? totalPages - 1 : 0);
+            const start = gameState.currentPage * PROFILES_PER_PAGE; const end = start + PROFILES_PER_PAGE;
+            const profilesToShow = gameState.profiles.slice(start, end);
+            dom.profile.cardsContainer.classList.toggle('edit-mode', gameState.isEditMode);
+            profilesToShow.forEach(profile => {
+                const card = document.createElement('div'); card.className = 'profile-card'; card.textContent = profile.name;
+                card.onclick = () => selectProfile(profile);
+                const deleteBtn = document.createElement('button'); deleteBtn.className = 'delete-profile-button'; deleteBtn.textContent = '🗑️';
+                deleteBtn.onclick = (e) => { e.stopPropagation(); deleteProfile(profile.id); };
+                card.appendChild(deleteBtn); dom.profile.cardsContainer.appendChild(card);
+            });
+            if (gameState.currentPage === 0) {
+                const addCard = document.createElement('div'); addCard.className = 'profile-card add-new-card'; addCard.textContent = '+';
+                addCard.onclick = showProfileCreator; dom.profile.cardsContainer.prepend(addCard);
+            }
+            dom.profile.paginationControls.classList.toggle('hidden', totalPages <= 1);
+            if(dom.buttons.prevPage) dom.buttons.prevPage.disabled = gameState.currentPage === 0;
+            if(dom.buttons.nextPage) dom.buttons.nextPage.disabled = gameState.currentPage >= totalPages - 1;
+            if(dom.profile.pageIndicator) dom.profile.pageIndicator.textContent = `Página ${gameState.currentPage + 1} / ${totalPages || 1}`;
+        }
+        function selectProfile(profile) { if (gameState.isEditMode) return; gameState.currentPlayer = profile; startGame(); }
+        function showProfileCreator() { dom.profile.selector.classList.add('hidden'); dom.profile.creator.classList.remove('hidden'); dom.nameInput.text.textContent = ''; }
+        function saveNewProfile() {
+            loadProfiles(); const newName = dom.nameInput.text.textContent.trim();
+            if (newName && !gameState.profiles.some(p => p.name.toLowerCase() === newName.toLowerCase())) {
+                const newProfile = { id: Date.now(), name: newName }; gameState.profiles.push(newProfile); saveProfiles();
+            }
+            renderProfileSelector();
+        }
+        function deleteProfile(profileId) { if (!confirm("¿Seguro que quieres borrar este perfil?")) return; gameState.profiles = gameState.profiles.filter(p => p.id !== profileId); saveProfiles(); renderProfileSelector(); }
+        function toggleEditMode() { gameState.isEditMode = !gameState.isEditMode; renderProfileSelector(); }
+
+        // --- KEYBOARD ---
+        function createKeyboard() {
+            const keyLayout = [ ['1','2','3','4','5','6','7','8','9','0'], ['q','w','e','r','t','y','u','i','o','p'], ['a','s','d','f','g','h','j','k','l'], ['z','x','c','v','b','n','m','@','_'] ];
+            const specialKeyDefs = [ { id: 'shift', text: 'MAYÚS ⇧', grow: 2 }, { id: 'space', text: 'ESPACIO', grow: 5 }, { id: 'delete', text: 'BORRAR', grow: 2 }, { id: 'backspace', text: 'RETR. ⌫', grow: 2 } ];
+            const keyboardContainer = dom.nameInput.container; keyboardContainer.innerHTML = '';
+            keyLayout.forEach(rowKeys => {
+                const rowDiv = document.createElement('div'); rowDiv.className = 'keyboard-row';
+                rowKeys.forEach(key => rowDiv.appendChild(createKey(key, key.length === 1 && key.match(/[a-z]/i))));
+                const ghostsNeeded = 10 - rowKeys.length;
+                for (let i = 0; i < ghostsNeeded; i++) { const ghost = document.createElement('div'); ghost.className = 'key ghost'; rowDiv.appendChild(ghost); }
+                keyboardContainer.appendChild(rowDiv);
+            });
+            const specialRow = document.createElement('div'); specialRow.className = 'keyboard-row';
+            specialKeyDefs.forEach(def => {
+                const keyDiv = createKey(def.id); keyDiv.classList.add('special'); keyDiv.textContent = def.text;
+                keyDiv.style.flexGrow = def.grow; specialRow.appendChild(keyDiv);
+            });
+            keyboardContainer.appendChild(specialRow);
+            const shiftKey = document.getElementById('key-shift');
+            if(shiftKey) shiftKey.classList.toggle('shift-active', gameState.isShiftActive);
+        }
+        function createKey(key, isLetter = false) {
+            const keyDiv = document.createElement('div'); keyDiv.className = 'key';
+            if (isLetter) keyDiv.classList.add('key-letter');
+            keyDiv.id = `key-${key}`; keyDiv.dataset.key = key;
+            keyDiv.textContent = (isLetter && gameState.isShiftActive) ? key.toUpperCase() : key;
+            keyDiv.addEventListener('click', () => handleKeyPress(key));
+            return keyDiv;
+        }
+        function handleKeyPress(key) {
+            const shiftKey = document.getElementById('key-shift');
+            if (key === 'shift') {
+                gameState.isShiftActive = !gameState.isShiftActive; 
+                if(shiftKey) shiftKey.classList.toggle('shift-active', gameState.isShiftActive);
+                const letterKeys = dom.nameInput.container.querySelectorAll('.key-letter');
+                letterKeys.forEach(k => k.textContent = gameState.isShiftActive ? k.dataset.key.toUpperCase() : k.dataset.key.toLowerCase()); return;
+            }
+            let currentName = dom.nameInput.text.textContent;
+            if (key === 'backspace') dom.nameInput.text.textContent = currentName.slice(0, -1);
+            else if (key === 'delete') dom.nameInput.text.textContent = '';
+            else if (key === 'space') currentName.length < 15 ? dom.nameInput.text.textContent += ' ' : null;
+            else if (currentName.length < 15) { dom.nameInput.text.textContent += (key.length === 1 && key.match(/[a-z]/i) && gameState.isShiftActive) ? key.toUpperCase() : key; }
+        }
+
+        // --- GAME LOGIC ---
+        function startGame() {
+            if (!gameState.currentPlayer) return;
+            gameState.score = 0; gameState.level = 1; gameState.subLevel = 1;
+            gameState.isMultiplierActive = false;
+            switchScreen('game');
+            loadLevel();
+        }
+        function loadLevel() { resetGameStateForNewLevel(); generateBoard(); updateReportDisplays(); }
+        function resetGameStateForNewLevel() { gameState.attempts = 0; gameState.pairsFound = 0; gameState.totalPairs = gameState.level + 1; [gameState.firstCard, gameState.secondCard, gameState.lockBoard] = [null, null, false]; }
+        function createCardSet() {
+            let pairs = [];
+            const currentTheme = LEVEL_THEMES[gameState.level - 1]; const icons = [...currentTheme.icons];
+            if (gameState.subLevel !== 3) {
+                for (let i = 0; i < gameState.totalPairs; i++) {
+                    const value = i + 1; const icon = icons[i % icons.length];
+                    const display = (gameState.subLevel === 1) ? value : generateIconLayout(icon, value);
+                    pairs.push({ value: value, display: display }, { value: value, display: display });
+                }
+            } else {
+                for (let i = 0; i < gameState.totalPairs; i++) {
+                    const value = i + 1; const icon = icons[i % icons.length];
+                    pairs.push({ value: `num-${value}`, display: value });
+                    pairs.push({ value: `ico-${value}`, display: generateIconLayout(icon, value) });
+                }
+            }
+            return pairs;
+        }
+        function generateBoard() {
+            let cards = createCardSet();
+            if (gameState.level > 1 && Math.random() < 0.35) {
+                const powerUp = POWER_UPS_CONFIG[Math.floor(Math.random() * POWER_UPS_CONFIG.length)];
+                const cardToRemove = cards[Math.floor(Math.random() * cards.length)];
+                const valueCore = String(cardToRemove.value).replace(/ico-|num-/, '');
+                
+                cards = cards.filter(c => !String(c.value).includes(valueCore));
+                
+                const powerUpCard = { value: powerUp.value, display: generateIconLayout(powerUp.icon, 1), isPowerUp: true };
+                cards.push(powerUpCard, { ...powerUpCard });
+            }
+            shuffle(cards);
+
+            dom.game.grid.innerHTML = ''; const currentTheme = LEVEL_THEMES[gameState.level - 1];
+            const boardConfig = calculateBoardLayout(cards.length);
+            dom.game.grid.style.gridTemplateColumns = `repeat(${boardConfig.cols}, 1fr)`; dom.game.grid.style.gridTemplateRows = `repeat(${boardConfig.rows}, 1fr)`;
+            dom.game.board.style.backgroundColor = currentTheme.bgColor;
+            cards.forEach(cardInfo => {
+                const cardElement = document.createElement('div'); cardElement.className = 'card';
+                if (cardInfo.isPowerUp) cardElement.classList.add('power-up');
+                cardElement.dataset.value = cardInfo.value;
+                cardElement.innerHTML = `<div class="card-inner"><div class="card-back"></div><div class="card-face">${cardInfo.display}</div></div>`;
+                dom.game.grid.appendChild(cardElement);
+            });
+            setTimeout(adjustLayout, 0);
+        }
+        function handleCardClick(e) {
+            const clickedCard = e.target.closest('.card');
+            if (!clickedCard || gameState.lockBoard || clickedCard.classList.contains('matched') || clickedCard.classList.contains('is-flipping')) return;
+            
+            if (gameState.firstCard === clickedCard) {
+                gameState.firstCard = null;
+                unflipSingleCard(clickedCard);
+                return;
+            }
+
+            flipCard(clickedCard);
+            
+            if (!gameState.firstCard) {
+                gameState.firstCard = clickedCard;
+            } else {
+                gameState.secondCard = clickedCard;
+                gameState.lockBoard = true;
+                gameState.attempts++;
+                checkForMatch();
+                updateReportDisplays();
+            }
+        }
+        function flipCard(card) {
+            card.classList.add('is-flipping', 'is-flipped');
+            setTimeout(() => card.classList.remove('is-flipping'), FLIP_ANIMATION_DURATION);
+        }
+        function unflipSingleCard(card) {
+            card.classList.add('is-flipping');
+            card.classList.remove('is-flipped');
+            setTimeout(() => card.classList.remove('is-flipping'), FLIP_ANIMATION_DURATION);
+        }
+        function checkForMatch() {
+            const val1 = String(gameState.firstCard.dataset.value); const val2 = String(gameState.secondCard.dataset.value);
+            let isMatch = (gameState.subLevel === 3) ? (val1.replace(/[^0-9]/g, '') === val2.replace(/[^0-9]/g, '') && val1 !== val2) : (val1 === val2);
+            if (isMatch) {
+                if (val1.startsWith('powerup-')) { triggerPowerUp(val1); }
+                disableCards();
+            } else { unflipCards(); }
+        }
+        function disableCards() {
+            setTimeout(() => {
+                gameState.firstCard.querySelector('.card-inner').classList.add('is-correct');
+                gameState.secondCard.querySelector('.card-inner').classList.add('is-correct');
+                setTimeout(() => {
+                    gameState.firstCard.classList.add('matched'); gameState.secondCard.classList.add('matched');
+                    gameState.pairsFound++;
+                    let pointsToAdd = 100;
+                    if (gameState.isMultiplierActive && !String(gameState.firstCard.dataset.value).startsWith('powerup-')) {
+                        pointsToAdd = 200; gameState.isMultiplierActive = false;
+                    }
+                    gameState.score += pointsToAdd;
+                    resetTurn(); updateReportDisplays();
+                    if (gameState.pairsFound === gameState.totalPairs) setTimeout(nextStage, 1000);
+                }, 600);
+            }, 700);
+        }
+        function unflipCards() {
+            setTimeout(() => {
+                gameState.firstCard.querySelector('.card-inner').classList.add('is-wrong');
+                gameState.secondCard.querySelector('.card-inner').classList.add('is-wrong');
+                setTimeout(() => {
+                    if (gameState.firstCard) unflipSingleCard(gameState.firstCard);
+                    if (gameState.secondCard) unflipSingleCard(gameState.secondCard);
+                    resetTurn();
+                }, 400);
+            }, 700);
+        }
+        function resetTurn() { [gameState.firstCard, gameState.secondCard, gameState.lockBoard] = [null, null, false]; }
+        function nextStage() {
+            if (gameState.subLevel < 3) gameState.subLevel++;
+            else { gameState.level++; gameState.subLevel = 1; }
+            if (gameState.level > MAX_LEVELS) { endGame(); return; }
+            loadLevel();
+        }
+        function endGame() {
+            const highScores = getHighScores(); const playerName = gameState.currentPlayer.name;
+            const isNewRecord = highScores.length < 5 || gameState.score > highScores[highScores.length - 1].score;
+            dom.finalScreen.scoreValue.textContent = gameState.score;
+            dom.finalScreen.newRecord.classList.toggle('hidden', !isNewRecord);
+            switchScreen('finalScore');
+            setTimeout(() => {
+                if (isNewRecord) saveScore(playerName, gameState.score);
+                displayHighScores(isNewRecord ? playerName : null, isNewRecord ? gameState.score : null);
+                switchScreen('hallOfFame', 'ceremony');
+            }, 2500);
+        }
+
+        // --- POWER-UP LOGIC ---
+        function triggerPowerUp(powerUpValue) {
+            if (powerUpValue === 'powerup-peek') triggerPeekEffect();
+            if (powerUpValue === 'powerup-multiplier') { gameState.isMultiplierActive = true; }
+        }
+        function triggerPeekEffect() {
+            gameState.lockBoard = true;
+            const unMatchedCards = [...dom.game.grid.querySelectorAll('.card:not(.matched):not(.is-flipped)')];
+            unMatchedCards.forEach(card => flipCard(card));
+            setTimeout(() => {
+                unMatchedCards.forEach(card => unflipSingleCard(card));
+                gameState.lockBoard = false;
+            }, 1500);
+        }
+
+        // --- UI & LAYOUT ---
+        function updateReportDisplays() {
+            const currentTheme = LEVEL_THEMES[gameState.level - 1]; dom.game.playerName.textContent = gameState.currentPlayer.name;
+            dom.game.themeName.textContent = currentTheme.themeName; dom.game.score.textContent = `Puntos: ${gameState.score}`;
+            dom.game.level.textContent = `Nivel: ${gameState.level}.${gameState.subLevel}`; dom.game.pairs.textContent = `Pares: ${gameState.pairsFound}/${gameState.totalPairs}`;
+            dom.game.attempts.textContent = `Intentos: ${gameState.attempts}`;
+            dom.game.multiplierIndicator.classList.toggle('hidden', !gameState.isMultiplierActive);
+        }
+        function generateIconLayout(icon, count) {
+            const svg = `<svg class="icon-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"><text x="50%" y="55%" font-size="80" dominant-baseline="middle" text-anchor="middle">${icon}</text></svg>`;
+            const wrapper = `<div class="icon-svg-wrapper">${svg}</div>`; const cols = Math.ceil(Math.sqrt(count)); const rows = Math.ceil(count / cols);
+            let layoutHtml = `<div class="icon-layout" style="grid-template-columns: repeat(${cols}, 1fr); grid-template-rows: repeat(${rows}, 1fr);">`;
+            for (let i = 0; i < count; i++) { layoutHtml += wrapper; }
+            layoutHtml += '</div>'; return layoutHtml;
+        }
+        function calculateBoardLayout(totalCards) {
+            if (totalCards <= 10 && totalCards % 2 === 0) return { rows: 2, cols: totalCards / 2 }; if (totalCards <= 18 && totalCards % 3 === 0) return { rows: 3, cols: totalCards / 3 };
+            if (totalCards % 4 === 0) return { rows: 4, cols: totalCards / 4 }; if (totalCards <= 14) return { rows: 2, cols: Math.ceil(totalCards / 2) };
+            if (totalCards <= 21) return { rows: 3, cols: Math.ceil(totalCards / 3) }; return { rows: 4, cols: Math.ceil(totalCards / 4) };
+        }
+        function adjustLayout() {
+            if (dom.screens.game.classList.contains('hidden')) return; const grid = dom.game.grid; const boardRect = dom.game.board.getBoundingClientRect();
+            if (!grid.children.length) return; const { cols, rows } = calculateBoardLayout(grid.children.length); if (!cols || !rows) return;
+            const cardAspectRatio = 3 / 4; const gridAspectRatio = (cols * cardAspectRatio) / rows; let gridWidth, gridHeight;
+            if (boardRect.width / boardRect.height < gridAspectRatio) { gridWidth = boardRect.width * 0.98; gridHeight = gridWidth / gridAspectRatio; }
+            else { gridHeight = boardRect.height * 0.98; gridWidth = gridHeight * gridAspectRatio; }
+            grid.style.width = `${gridWidth}px`; grid.style.height = `${gridHeight}px`; grid.style.gap = `${(gridWidth / cols) * 0.05}px`;
+            const cardHeight = gridHeight / rows; document.documentElement.style.setProperty('--dynamic-card-font-size', `${cardHeight * 0.5}px`);
+        }
+        function shuffle(array) { for (let i = array.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [array[i], array[j]] = [array[j], array[i]]; } }
+
+        // --- DATA PERSISTENCE & FULLSCREEN ---
+        function getHighScores() { return JSON.parse(localStorage.getItem('memoRhythm_highScores')) || []; }
+        function saveScore(name, score) { let highScores = getHighScores(); highScores.push({ name, score }); highScores.sort((a, b) => b.score - a.score); highScores = highScores.slice(0, 5); localStorage.setItem('memoRhythm_highScores', JSON.stringify(highScores)); }
+        function displayHighScores(newPlayerName, newPlayerScore) {
+            const highScores = getHighScores(); dom.hallOfFame.table.innerHTML = '';
+            for (let i = 0; i < 5; i++) {
+                const rank = i + 1; const scoreData = highScores[i]; const isNewEntry = scoreData && scoreData.name === newPlayerName && scoreData.score === newPlayerScore;
+                const rankDiv = document.createElement('div'); rankDiv.className = `score-rank score-row-${rank}`; rankDiv.textContent = `${rank}.`;
+                const nameDiv = document.createElement('div'); nameDiv.className = `score-name score-row-${rank}`; nameDiv.textContent = scoreData ? scoreData.name : '---';
+                const scoreDiv = document.createElement('div'); scoreDiv.className = `score-value score-row-${rank}`; scoreDiv.textContent = scoreData ? scoreData.score : '---';
+                if (isNewEntry) { [rankDiv, nameDiv, scoreDiv].forEach(el => el.classList.add('new-entry-highlight')); }
+                dom.hallOfFame.table.appendChild(rankDiv); dom.hallOfFame.table.appendChild(nameDiv); dom.hallOfFame.table.appendChild(scoreDiv);
+            }
+        }
+        function initializeDefaultData() {
+            if (!localStorage.getItem('memoRhythm_playerProfiles')) { localStorage.setItem('memoRhythm_playerProfiles', JSON.stringify([{id: 1, name: 'Cosmo'}])); }
+            if (!localStorage.getItem('memoRhythm_highScores')) { const defaultScores = [ { name: 'Cosmo', score: 5000 }, { name: 'Nova', score: 4000 }, { name: 'Orion', score: 3000 }, { name: 'Lyra', score: 2000 }, { name: 'Draco', score: 1000 } ]; localStorage.setItem('memoRhythm_highScores', JSON.stringify(defaultScores)); }
+        }
+        function requestFullscreen() { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); }
+        function handleFullscreenChange() { const isFullscreen = !!document.fullscreenElement; dom.screens.fullscreenOverlay.classList.toggle('hidden', isFullscreen); }
+        
+        // --- EVENT LISTENERS ---
+        dom.buttons.enter.addEventListener('click', () => { requestFullscreen(); switchScreen('profile'); });
+        dom.buttons.resumeFullscreen.addEventListener('click', requestFullscreen);
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        dom.buttons.hallOfFame.addEventListener('click', () => { displayHighScores(); switchScreen('hallOfFame', 'consultation'); });
+        dom.buttons.back.addEventListener('click', () => { switchScreen(gameState.lastScreenBeforeHof); });
+        dom.buttons.playAgain.addEventListener('click', () => { dom.finalScreen.newRecord.classList.add('hidden'); switchScreen('profile'); });
+        dom.buttons.mainMenu.addEventListener('click', () => { dom.finalScreen.newRecord.classList.add('hidden'); init(); });
+        dom.buttons.editProfiles.addEventListener('click', toggleEditMode);
+        dom.buttons.saveProfile.addEventListener('click', saveNewProfile);
+        dom.buttons.cancelCreate.addEventListener('click', renderProfileSelector);
+        dom.buttons.prevPage.addEventListener('click', () => { if (gameState.currentPage > 0) { gameState.currentPage--; renderProfileSelector(); }});
+        dom.buttons.nextPage.addEventListener('click', () => { const totalPages = Math.ceil((gameState.profiles.length + 1) / PROFILES_PER_PAGE); if (gameState.currentPage < totalPages - 1) { gameState.currentPage++; renderProfileSelector(); }});
+        dom.game.board.addEventListener('click', handleCardClick);
+        window.addEventListener('keydown', (e) => {
+            if (gameState.currentScreen === 'profile' && !dom.profile.creator.classList.contains('hidden')) {
+                e.preventDefault(); if (e.key === 'Shift') return;
+                const key = e.key.toLowerCase();
+                if (key.length === 1 && 'abcdefghijklmnopqrstuvwxyz1234567890@_ '.includes(key)) handleKeyPress(key === ' ' ? 'space' : key);
+                else if (key === 'backspace') handleKeyPress('backspace'); else if (key === 'delete') handleKeyPress('delete');
+                else if (key === 'enter') saveNewProfile();
+            }
+        });
+        new ResizeObserver(adjustLayout).observe(document.body);
+        
+        // --- START ---
+        init();
+    });
+    </script>
+</body>
+</html>
